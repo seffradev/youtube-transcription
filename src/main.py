@@ -1,15 +1,45 @@
-from __future__ import unicode_literals
-import youtube_dl
+import subprocess
+import sys
 
-ydl_opts = {}
-#ydl_opts = {
-#    'format': 'bestaudio/best',
-#    'postprocessors': [{
-#        'key': 'FFmpegExtractAudio',
-#        'preferredcodec': 'mp3',
-#        'preferredquality': '192',
-#    }],
-#}
+def download_videos(urls):
+    if len(urls) > 1:
+        print("Too many URLs. Can only handle one at a time")
+        sys.exit(1)
+    import yt_dlp
+    filename = ""
+    codec = "mp3"
+    ydl_opts = {
+        "format": "m4a/bestaudio/best",
+        "postprocessors": [{  # Extract audio using ffmpeg
+            "key": "FFmpegExtractAudio",
+            "preferredcodec": codec,
+        }],
+        "quiet": True,
+        "external_downloader_args": ["-loglevel", "panic"],
+        "noprogress": True,
+    }
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        error_code = ydl.download(urls)
+        info = ydl.extract_info(urls[0], download=False)
+        id = info["id"]
+        title = info["title"]
+        filename = f"{title} [{id}].{codec}"
+    return filename
 
-with youtube_dl.YoutubeDL(ydl_opts) as ydl:
-    ydl.download(['https://www.youtube.com/watch?v=dQw4w9WgXcQ'])
+def transcribe(filename, language=None):
+    import whisper
+    model = whisper.load_model("small")
+    result = model.transcribe(filename)
+    return result["text"]
+
+if __name__ == "__main__":
+    if len(sys.argv) != 2:
+        print(f"usage: {sys.argv[0]} <url>")
+        sys.exit(1)
+    filename = download_videos([sys.argv[1]])
+
+    transcription = transcribe(filename)
+
+    subprocess.run(["rm", filename])
+
+    print(transcription)
